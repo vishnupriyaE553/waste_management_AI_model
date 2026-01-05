@@ -40,111 +40,208 @@ Colab Code:
 ```
 from google.colab import drive
 drive.mount('/content/drive')
-!unzip /content/drive/MyDrive/waste_management_dataset.zip -d /content/dataset
-import tensorflow as tf  # ✅ import TensorFlow
 
+!unzip -q /content/drive/MyDrive/waste_management_dataset.zip -d /content/dataset
+import os
+import tensorflow as tf
+from tensorflow.keras import layers, models
+import numpy as np
+
+# -----------------------------
+# Config
+# -----------------------------
 DATA_DIR = "/content/dataset/TrashType_Image_Dataset"
+IMG_SIZE = (224, 224)
+BATCH_SIZE = 32
+SEED = 123
 
+# -----------------------------
+# Inspect directory (important)
+# -----------------------------
+print("Classes (folders) found:")
+for d in sorted(os.listdir(DATA_DIR)):
+    if os.path.isdir(os.path.join(DATA_DIR, d)):
+        print("  -", d)
 
-
-train_ds = tf.keras.preprocessing.image_dataset_from_directory(
+# -----------------------------
+# Load dataset (single root dir)
+# -----------------------------
+train_ds = tf.keras.utils.image_dataset_from_directory(
     DATA_DIR,
+    labels="inferred",
+    label_mode="int",
     validation_split=0.2,
     subset="training",
-    seed=123,
-    image_size=(224, 224),
-    batch_size=32
+    seed=SEED,
+    image_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    shuffle=True
 )
 
-from tensorflow.keras import layers, models
-import tensorflow as tf
+val_ds = tf.keras.utils.image_dataset_from_directory(
+    DATA_DIR,
+    labels="inferred",
+    label_mode="int",
+    validation_split=0.2,
+    subset="validation",
+    seed=SEED,
+    image_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    shuffle=True
+)
 
-IMG_SIZE = (224, 224)
+class_names = train_ds.class_names
+NUM_CLASSES = len(class_names)
+print("Class order:", class_names)
 
+# Quick sanity check on labels
+for images, labels in train_ds.take(1):
+    print("Sample labels in first batch:", labels.numpy())
+    break
+
+# -----------------------------
+# Performance optimizations
+# -----------------------------
+AUTOTUNE = tf.data.AUTOTUNE
+train_ds = train_ds.cache().shuffle(1000).prefetch(AUTOTUNE)
+val_ds = val_ds.cache().prefetch(AUTOTUNE)
+
+# -----------------------------
+# Data augmentation
+# -----------------------------
+data_augmentation = tf.keras.Sequential([
+    layers.RandomFlip("horizontal"),
+    layers.RandomRotation(0.2),
+    layers.RandomZoom(0.15),
+    layers.RandomContrast(0.2),
+], name="data_augmentation")
+
+# -----------------------------
+# Base model
+# -----------------------------
 base_model = tf.keras.applications.MobileNetV2(
     input_shape=IMG_SIZE + (3,),
     include_top=False,
-    weights='imagenet'
+    weights="imagenet"
 )
-base_model.trainable = False
 
+# -----------------------------
+# Build model
+# -----------------------------
 inputs = tf.keras.Input(shape=IMG_SIZE + (3,))
-x = tf.keras.applications.mobilenet_v2.preprocess_input(inputs)
+
+x = data_augmentation(inputs)
+x = tf.keras.applications.mobilenet_v2.preprocess_input(x)
+
 x = base_model(x, training=False)
 x = layers.GlobalAveragePooling2D()(x)
-x = layers.Dropout(0.3)(x)
-outputs = layers.Dense(len(train_ds.class_names), activation='softmax')(x)
+x = layers.BatchNormalization()(x)
+x = layers.Dense(256, activation="relu")(x)
+x = layers.Dropout(0.4)(x)
+outputs = layers.Dense(NUM_CLASSES, activation="softmax")(x)
 
-model = models.Model(inputs, outputs)
+model = models.Model(inputs, outputs, name="waste_classifier")
+model.summary()
+
+# ======================================================
+# PHASE 1 — TRAIN CLASSIFIER HEAD
+# ======================================================
+base_model.trainable = False
 
 model.compile(
-    optimizer='adam',
-    loss='sparse_categorical_crossentropy',
-    metrics=['accuracy']
-)
-train_ds = tf.keras.preprocessing.image_dataset_from_directory(
-    DATA_DIR,
-    validation_split=0.2,
-    subset="training",
-    seed=123,
-    image_size=(224, 224),
-    batch_size=32
+    optimizer=tf.keras.optimizers.Adam(1e-3),
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
 )
 
-val_ds = tf.keras.preprocessing.image_dataset_from_directory(
-    DATA_DIR,
-    validation_split=0.2,
-    subset="validation",
-    seed=123,
-    image_size=(224, 224),
-    batch_size=32
-)
-AUTOTUNE = tf.data.AUTOTUNE
-train_ds = train_ds.cache().shuffle(1000).prefetch(buffer_size=AUTOTUNE)
-val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
-
-history = model.fit(
+print("🔵 Phase 1: Training classifier head")
+history1 = model.fit(
     train_ds,
     validation_data=val_ds,
     epochs=10
 )
+
+# ======================================================
+# PHASE 2 — FINE-TUNE TOP LAYERS
+# ======================================================
+base_model.trainable = True
+
+# unfreeze only last 20–30 layers
+for layer in base_model.layers[:-25]:
+    layer.trainable = False
+
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(1e-5),
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+print("🟢 Phase 2: Fine-tuning top layers")
+history2 = model.fit(
+    train_ds,
+    validation_data=val_ds,
+    epochs=10
+)
+
+# ======================================================
+# SAVE MODEL AND CLASS NAMES
+# ======================================================
+model.save("waste_classifier_model.keras")
+np.save("waste_class_names.npy", np.array(class_names))
+print("✅ Final model saved at waste_classifier_model.keras")
+print("✅ Class names saved at waste_class_names.npy")
+
 ```
-VS code foe streamlit interface:
+VS code for streamlit interface:
 ```
 import streamlit as st
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
-from PIL import Image
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.models import load_model
+from PIL import Image
+import os
+st.set_page_config(
+    page_title="AI Waste Classifier",
+    page_icon="♻️",
+    layout="centered"
+)
 
-# Load the model
-model = load_model('waste_classifier_model.keras')
-class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']  # update according to your dataset
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "waste_classifier_model.keras")
+
+@st.cache_resource
+def load_waste_model():
+    return tf.keras.models.load_model(
+        MODEL_PATH,
+        compile=False,
+        safe_mode=False
+    )
+model = load_waste_model()
+
+class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
 
 st.title("♻️ AI Waste Classifier")
-st.markdown("Upload an image of waste to predict its type using an AI model trained on green technology principles.")
+st.write("Upload an image of waste")
 
-uploaded_file = st.file_uploader("Upload a waste image...", type=["jpg", "png", "jpeg"])
+uploaded_file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png"])
 
-if uploaded_file is not None:
-    # Display uploaded image
-    img = Image.open(uploaded_file).convert('RGB')
-    st.image(img, caption='Uploaded Image', use_column_width=True)
-    
-    # Preprocess the image
-    img = img.resize((224, 224))
-    img = np.array(img) / 255.0
-    img = np.expand_dims(img, 0)
+if uploaded_file:
+    image = Image.open(uploaded_file).convert("RGB")
+    st.image(image, caption="Uploaded Image", use_container_width=True)
 
+    img = image.resize((224, 224))
+    img_array = np.array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
 
-    # Prediction
-    preds = model.predict(x)
-    pred_class = class_names[np.argmax(preds)]
-    confidence = np.max(preds) * 100
+    preds = model.predict(img_array, verbose=0)[0]
+    idx = np.argmax(preds)
+    st.write("Prediction vector:")
+    for i, p in enumerate(preds):
+        st.write(f"{i}: {class_names[i]} → {p:.4f}")
 
-    # Show result
-    st.success(f"### 🧾 Predicted: {pred_class.capitalize()} ({confidence:.2f}% confidence)")
+    st.success(f"Prediction: **{class_names[idx]}**")
+    st.metric("Confidence", f"{preds[idx]*100:.2f}%")
 ```
 Conclusion: 
 
