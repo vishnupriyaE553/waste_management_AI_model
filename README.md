@@ -131,9 +131,9 @@ base_model = tf.keras.applications.MobileNetV2(
 inputs = tf.keras.Input(shape=IMG_SIZE + (3,))
 
 x = data_augmentation(inputs)
-x = tf.keras.applications.mobilenet_v2.preprocess_input(x)
-
+x = layers.Rescaling(1./127.5, offset=-1)(x)   # <-- FIX
 x = base_model(x, training=False)
+
 x = layers.GlobalAveragePooling2D()(x)
 x = layers.BatchNormalization()(x)
 x = layers.Dense(256, activation="relu")(x)
@@ -158,7 +158,7 @@ print("🔵 Phase 1: Training classifier head")
 history1 = model.fit(
     train_ds,
     validation_data=val_ds,
-    epochs=10
+    epochs=1
 )
 
 # ======================================================
@@ -180,7 +180,7 @@ print("🟢 Phase 2: Fine-tuning top layers")
 history2 = model.fit(
     train_ds,
     validation_data=val_ds,
-    epochs=10
+    epochs=1
 )
 
 # ======================================================
