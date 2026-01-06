@@ -10,6 +10,30 @@ Poor sorting results in more landfill waste, pollution, and ineffective recyclin
 
 The main goal is to create a smart, automated waste classification system that can accurately identify and sort waste materials using Artificial Intelligence (AI) and Machine Learning (ML) techniques. This system will help achieve sustainable waste management, lessen the workload for people, and encourage eco-friendly recycling practices.
 
+🚀 Features:
+
+📸 Upload an image of waste
+🧠 AI model classifies waste into:
+       Cardboard 📦
+       Glass 🍾
+       Metal 🥫
+       Paper 🗞️
+       Plastic 🧴
+       Trash 🗑️
+⚡ Fast inference using MobileNetV2
+🌗 Light & Dark mode support (Streamlit)
+📊 Confidence score display
+💻 Simple, clean Streamlit UI
+
+🧠 Model Details
+
+Architecture: MobileNetV2 (Transfer Learning)
+Input size: 224 × 224 × 3
+Dataset: TrashType Image Dataset
+Training Strategy:
+    Phase 1: Train classifier head
+    Phase 2: Fine-tune top layers
+
 Tools and Technologies Used: 
 
 1. Google Colab:
