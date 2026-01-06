@@ -197,16 +197,21 @@ VS code for streamlit interface:
 import streamlit as st
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
 from PIL import Image
 import os
 
+# --------------------------------
+# Page config
+# --------------------------------
 st.set_page_config(
     page_title="AI Waste Classifier",
     page_icon="♻️",
     layout="centered"
 )
 
+# --------------------------------
+# Load model
+# --------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "waste_classifier_model.keras")
 
@@ -222,25 +227,92 @@ model = load_waste_model()
 
 class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
 
-st.title("♻️ AI Waste Classifier")
-st.write("Upload an image of waste")
+# --------------------------------
+# Header
+# --------------------------------
+st.markdown(
+    """
+    <h1 style="text-align:center;">♻️ AI Waste Classifier</h1>
+    <p style="text-align:center; font-size:18px; color:gray;">
+        Upload an image of waste and let AI classify it
+    </p>
+    """,
+    unsafe_allow_html=True
+)
 
-uploaded_file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png"])
+st.divider()
 
+# --------------------------------
+# File upload
+# --------------------------------
+uploaded_file = st.file_uploader(
+    "📤 Upload an image",
+    type=["jpg", "jpeg", "png"]
+)
+
+# --------------------------------
+# Prediction
+# --------------------------------
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="Uploaded Image", use_container_width=True)
 
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        st.image(
+            image,
+            caption="Uploaded Image",
+            use_container_width=True
+        )
+
+    # Preprocess
     img = image.resize((224, 224))
-    img_array = np.array(img)
-    img_array = np.expand_dims(img_array, axis=0)
+    img_array = np.expand_dims(np.array(img), axis=0)
     img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
 
     preds = model.predict(img_array, verbose=0)[0]
     idx = int(np.argmax(preds))
 
-    st.success(f"Prediction: **{class_names[idx]}**")
-    st.metric("Confidence", f"{preds[idx] * 100:.2f}%")
+    predicted_class = class_names[idx]
+    confidence = preds[idx] * 100
+
+    with col2:
+        st.markdown(
+            f"""
+            <div style="
+                background-color:#0f2f1f;
+                padding:25px;
+                border-radius:12px;
+                text-align:center;
+            ">
+                <h2 style="color:#6fff9b;">
+                    {predicted_class.capitalize()}
+                </h2>
+                <p style="font-size:18px; color:white;">
+                    Confidence
+                </p>
+                <h1 style="color:white;">
+                    {confidence:.2f}%
+                </h1>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.divider()
+
+    # --------------------------------
+    # Top-3 confidence bars
+    # --------------------------------
+    st.subheader("🔍 Prediction Confidence")
+
+    top3 = np.argsort(preds)[::-1][:3]
+    for i in top3:
+        st.write(f"**{class_names[i].capitalize()}**")
+        st.progress(float(preds[i]))
+
+else:
+    st.info("👆 Upload an image to start classification"))
 
 ```
 Conclusion: 
