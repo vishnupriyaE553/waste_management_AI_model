@@ -14,12 +14,12 @@ This project aims to develop an AI-assisted waste classification system that can
 
  - Upload an image of waste (JPG, JPEG, PNG)
  - AI-assisted classifies into six categories:
-       Cardboard 📦
-       Glass 🍾
-       Metal 🥫
-       Paper 🗞️
-       Plastic 🧴
-       Trash 🗑️
+       -Cardboard 📦
+       -Glass 🍾
+       -Metal 🥫
+       -Paper 🗞️
+       -Plastic 🧴
+       -Trash 🗑️
 - Displays prediction confidence
 - Interactive Streamlit web interface
 - Light and Dark mode UI support
