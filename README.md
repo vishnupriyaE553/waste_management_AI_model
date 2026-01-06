@@ -210,6 +210,42 @@ st.set_page_config(
 )
 
 # --------------------------------
+# Theme toggle
+# --------------------------------
+theme = st.toggle("🌗 Dark mode", value=True)
+
+if theme:  # Dark mode
+    bg_color = "#0e1117"
+    card_color = "#0f2f1f"
+    text_color = "#ffffff"
+    secondary_text = "#b3b3b3"
+    accent = "#6fff9b"
+else:      # Light mode
+    bg_color = "#f4f6f8"
+    card_color = "#ffffff"
+    text_color = "#1a1a1a"       # darker text
+    secondary_text = "#444444"   # readable gray
+    accent = "#0f7a4a"           # darker green
+
+st.markdown(
+    f"""
+    <style>
+        .stApp {{
+            background-color: {bg_color};
+            color: {text_color};
+        }}
+        h1, h2, h3, h4, h5, h6 {{
+            color: {text_color};
+        }}
+        p {{
+            color: {secondary_text};
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# --------------------------------
 # Load model
 # --------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -225,7 +261,18 @@ def load_waste_model():
 
 model = load_waste_model()
 
+# --------------------------------
+# Classes & icons
+# --------------------------------
 class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
+class_icons = {
+    "cardboard": "📦",
+    "glass": "🧴",
+    "metal": "🥫",
+    "paper": "🗞️",
+    "plastic": "♻️",
+    "trash": "🗑️"
+}
 
 # --------------------------------
 # Header
@@ -233,7 +280,7 @@ class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
 st.markdown(
     """
     <h1 style="text-align:center;">♻️ AI Waste Classifier</h1>
-    <p style="text-align:center; font-size:18px; color:gray;">
+    <p style="text-align:center; font-size:18px;">
         Upload an image of waste and let AI classify it
     </p>
     """,
@@ -243,7 +290,7 @@ st.markdown(
 st.divider()
 
 # --------------------------------
-# File upload
+# Upload
 # --------------------------------
 uploaded_file = st.file_uploader(
     "📤 Upload an image",
@@ -265,7 +312,7 @@ if uploaded_file:
             use_container_width=True
         )
 
-    # Preprocess
+    # Preprocess (UNCHANGED)
     img = image.resize((224, 224))
     img_array = np.expand_dims(np.array(img), axis=0)
     img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
@@ -275,23 +322,26 @@ if uploaded_file:
 
     predicted_class = class_names[idx]
     confidence = preds[idx] * 100
+    icon = class_icons[predicted_class]
 
     with col2:
         st.markdown(
             f"""
             <div style="
-                background-color:#0f2f1f;
-                padding:25px;
-                border-radius:12px;
+                background-color:{card_color};
+                padding:30px;
+                border-radius:15px;
                 text-align:center;
+                box-shadow:0px 0px 15px rgba(0,0,0,0.15);
             ">
-                <h2 style="color:#6fff9b;">
+                <h1>{icon}</h1>
+                <h2 style="color:{accent};">
                     {predicted_class.capitalize()}
                 </h2>
-                <p style="font-size:18px; color:white;">
+                <p style="font-size:18px; color:{secondary_text};">
                     Confidence
                 </p>
-                <h1 style="color:white;">
+                <h1 style="color:{text_color};">
                     {confidence:.2f}%
                 </h1>
             </div>
@@ -308,11 +358,11 @@ if uploaded_file:
 
     top3 = np.argsort(preds)[::-1][:3]
     for i in top3:
-        st.write(f"**{class_names[i].capitalize()}**")
+        st.write(f"{class_icons[class_names[i]]} **{class_names[i].capitalize()}**")
         st.progress(float(preds[i]))
 
 else:
-    st.info("👆 Upload an image to start classification"))
+    st.info("👆 Upload an image to start classification")
 
 ```
 Conclusion: 
