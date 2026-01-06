@@ -200,6 +200,7 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from PIL import Image
 import os
+
 st.set_page_config(
     page_title="AI Waste Classifier",
     page_icon="♻️",
@@ -216,6 +217,7 @@ def load_waste_model():
         compile=False,
         safe_mode=False
     )
+
 model = load_waste_model()
 
 class_names = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
@@ -235,13 +237,11 @@ if uploaded_file:
     img_array = tf.keras.applications.mobilenet_v2.preprocess_input(img_array)
 
     preds = model.predict(img_array, verbose=0)[0]
-    idx = np.argmax(preds)
-    st.write("Prediction vector:")
-    for i, p in enumerate(preds):
-        st.write(f"{i}: {class_names[i]} → {p:.4f}")
+    idx = int(np.argmax(preds))
 
     st.success(f"Prediction: **{class_names[idx]}**")
-    st.metric("Confidence", f"{preds[idx]*100:.2f}%")
+    st.metric("Confidence", f"{preds[idx] * 100:.2f}%")
+
 ```
 Conclusion: 
 
